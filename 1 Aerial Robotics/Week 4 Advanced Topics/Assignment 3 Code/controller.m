@@ -1,0 +1,128 @@
+function [F, M] = controller(t, state, des_state, params)
+%CONTROLLER  Controller for the quadrotor
+%
+%   state: The current state of the robot with the following fields:
+%   state.pos = [x; y; z], state.vel = [x_dot; y_dot; z_dot],
+%   state.rot = [phi; theta; psi], state.omega = [p; q; r]
+%
+%   des_state: The desired states are:
+%   des_state.pos = [x; y; z], des_state.vel = [x_dot; y_dot; z_dot],
+%   des_state.acc = [x_ddot; y_ddot; z_ddot], des_state.yaw,
+%   des_state.yawdot
+%
+%   params: robot parameters
+
+%   Using these current and desired states, you have to compute the desired
+%   controls
+
+
+% =================== Your code goes here ===================
+
+m = params.mass;
+g = params.gravity;
+
+dcont = 1.0;
+pcont = 100.0;
+
+Kp3 = pcont;
+Kd3 = 2 * sqrt(Kp3) * dcont;
+
+Kp1 = pcont;
+Kd1 = 2 * sqrt(Kp1) * dcont;
+
+Kp2 = pcont;
+Kd2 = 2 * sqrt(Kp2) * dcont;
+
+Kpphi = pcont;
+Kptheta = pcont;
+Kppsi = pcont;
+
+Kdphi = 2 * sqrt(Kpphi) * dcont;
+Kdtheta = 2 * sqrt(Kptheta) * dcont;
+Kdpsi = 2 * sqrt(Kppsi) * dcont;
+
+
+r_vel_act_3 = state.vel(3);
+r_vel_act_1 = state.vel(1);
+r_vel_act_2 = state.vel(2);
+
+r_pos_act_3 = state.pos(3);
+r_pos_act_1 = state.pos(1);
+r_pos_act_2 = state.pos(2);
+
+r_pos_des_3 = des_state.pos(3);
+r_pos_des_1 = des_state.pos(1);
+r_pos_des_2 = des_state.pos(2);
+
+% POSITION (u1) assumptions - use one of two u1 alternatives
+% hover assumptions
+% assumes that r_acc_des_3 = 0.0 and r_vel_des_3 = 0.0
+
+% u13 = m * g - m * (Kd3 * r_vel_act_3 + Kp3 * (r_pos_act_3 - r_pos_des_3));
+
+% otherwise - 3D detailed linear
+r_acc_des_3 = des_state.acc(3);
+r_acc_des_1 = des_state.acc(1);
+r_acc_des_2 = des_state.acc(2);
+
+r_vel_des_3 = des_state.vel(3);
+r_vel_des_1 = des_state.vel(1);
+r_vel_des_2 = des_state.vel(2);
+
+u13 = m * g - m * (-r_acc_des_3 + Kd3 * (r_vel_act_3 - r_vel_des_3) + Kp3 * (r_pos_act_3 - r_pos_des_3));
+
+u11 = m * g - m * (-r_acc_des_1 + Kd1 * (r_vel_act_1 - r_vel_des_1) + Kp1 * (r_pos_act_1 - r_pos_des_1));
+
+u12 = m * g - m * (-r_acc_des_2 + Kd2 * (r_vel_act_2 - r_vel_des_2) + Kp2 * (r_pos_act_2 - r_pos_des_2));
+
+% POSITION END
+
+% MOMENTUM (u2) ASSUMPTIONS
+
+pdes = 0.0;
+qdes = 0.0;
+
+psi_des = des_state.yaw;    % should be psi_des(T) was 0.0
+rdes = des_state.yawdot;    % should be psi_des(T)_dot i.e. derivative of above) was 0.0
+
+% redundnant given above  ^^^^
+r_acc_des_1 = des_state.acc(1);
+r_acc_des_2 = des_state.acc(2);
+
+% WRONG - these need to have same form as u1 - WRONG
+% setting u2 = [0 0 0]' shows this
+% see https://www.coursera.org/learn/robotics-flight/programming/dIh4C/3-d-quadrotor-control/discussions/U8ZsCfPeEeWi3hK4t5iOYw
+% FIX? - replaced r_acc_des_i with u1i above for i = 1,2
+
+% OLD
+% phi_des = 1 / g * (r_acc_des_1 * sin(psi_des) - r_acc_des_2 * cos(psi_des));
+% theta_des = 1 / g * (r_acc_des_1 * cos(psi_des) - r_acc_des_2 * sin(psi_des));
+
+% NEW
+phi_des = 1 / g * (u11 * sin(psi_des) - u12 * cos(psi_des));
+theta_des = 1 / g * (u11 * cos(psi_des) - u12 * sin(psi_des));
+
+phi = state.rot(1);
+theta = state.rot(2);
+psi = state.rot(3);
+
+p = state.omega(1);
+q = state.omega(2);
+r = state.omega(3);
+
+% u2 = [0 0 0]';
+u2 = [Kpphi * (phi_des - phi) + Kdphi * (pdes - p); Kptheta * (theta_des - theta) + Kdtheta * (qdes - q); Kppsi * (psi_des - psi) + Kdpsi * (rdes - r)];
+
+% MOMENTUM END
+
+% Thrust
+% F = 0;
+F = u13;
+
+% Moment
+% M = zeros(3,1);
+M = u2;
+
+% =================== Your code ends here ===================
+
+end
